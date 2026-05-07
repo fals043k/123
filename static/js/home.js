@@ -2,7 +2,7 @@ const HomePageApp = (() => {
     'use strict';
 
     const CONFIG = {
-        API_BASE_URL: `http://${window.location.hostname}:8080`,
+        API_BASE_URL: ``,
         SELECTORS: {
             HEADER_BLOCK: '#header-block',
             FOOTER_BLOCK: '#footer-block',
