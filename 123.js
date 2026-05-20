@@ -1,5 +1,5 @@
 // all-news.js
-const API_BASE_URL = ``;
+const API_BASE_URL = `http://${window.location.hostname}:8080`;
 
 document.addEventListener('DOMContentLoaded', () => {
     loadHeader();
@@ -311,6 +311,17 @@ function closeNewsPopup() {
     newsPopupElement.classList.remove('active');
     newsPopupElement.setAttribute('aria-hidden', 'true');
     document.body.style.overflow = '';
+    
+    const imageElement = newsPopupElement.querySelector('.news-popup__image img');
+    if (imageElement) {
+        imageElement.src = '';
+        imageElement.alt = '';
+    }
+    
+    const imageContainer = newsPopupElement.querySelector('.news-popup__image');
+    if (imageContainer) {
+        imageContainer.style.display = 'none';
+    }
 }
 
 function formatBodyContent(text) {
@@ -339,6 +350,10 @@ function formatBodyContent(text) {
 }
 
 async function openNewsPopup(id, cachedData) {
+    if (newsPopupElement && newsPopupElement.classList.contains('active')) {
+        closeNewsPopup();
+    }
+    
     if (!newsPopupElement) {
         newsPopupElement = createNewsPopup();
         initNewsPopupHandlers();
@@ -367,21 +382,30 @@ async function openNewsPopup(id, cachedData) {
 
     if (bodyElement && contentData.body) {
         bodyElement.innerHTML = formatBodyContent(contentData.body);
-    }
-
-    if (imageElement && imageContainer) {
-        const fullImageUrl = await loadNewsImage(id, 'full');
-        
-        if (fullImageUrl) {
-            imageElement.src = fullImageUrl;
-            imageElement.alt = contentData.header || '';
-            imageContainer.style.display = '';
-        } else {
-            imageContainer.style.display = 'none';
-        }
+    } else if (bodyElement) {
+        bodyElement.innerHTML = '';
     }
 
     newsPopupElement.classList.add('active');
     newsPopupElement.setAttribute('aria-hidden', 'false');
     document.body.style.overflow = 'hidden';
+    
+    if (imageElement && imageContainer) {
+        imageElement.src = '';
+        imageContainer.style.display = 'none';
+        
+        try {
+            const fullImageUrl = await loadNewsImage(id, 'full');
+            
+            if (fullImageUrl && newsPopupElement.classList.contains('active')) {
+                imageElement.src = fullImageUrl;
+                imageElement.alt = contentData.header || '';
+                imageContainer.style.display = '';
+            } else if (fullImageUrl) {
+                URL.revokeObjectURL(fullImageUrl);
+            }
+        } catch (error) {
+            console.warn('Failed to load image:', error);
+        }
+    }
 }
