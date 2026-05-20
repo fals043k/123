@@ -1,386 +1,411 @@
-const EventApp = (() => {
-    'use strict';
+// all-news.js
+const API_BASE_URL = ``;
 
-    const CONFIG = {
-        API_BASE_URL: `http://${window.location.hostname}:8080`,
-        SELECTORS: {
-            HEADER_BLOCK: '#header-block',
-            FOOTER_BLOCK: '#footer-block',
-            EVENTS_GRID: '#events-grid',
-            FILTER_BUTTON: '#filter-button',
-            FILTER_MENU: '#filter-menu',
-            FILTER_ITEMS: '.dropdown__item',
-            EVENTS_CARD: '.events-card',
-            POPUP_CLOSE: '#event-popup-close-btn'
-        },
-        CLASSES: {
-            ACTIVE: 'active',
-            POPUP_ACTIVE: 'active'
-        },
-        API_ENDPOINTS: {
-            EVENTS_ORDER: '/api/v1/block/мероприятия/order',
-            EVENTS_CONTENT: '/api/v1/block/мероприятия/content'
-        },
-        TIMEOUT_MS: 10000
-    };
+document.addEventListener('DOMContentLoaded', () => {
+    loadHeader();
+    loadFooter();
+    initDropdown();
+    loadNews();
+});
 
-    let state = {
-        currentFilter: 'all',
-        eventsData: [],
-        popupElement: null
-    };
+let currentFilter = 'all';
+let newsData = [];
+let newsPopupElement = null;
 
-    const abortControllers = new Map();
-
-    function init() {
-        document.addEventListener('DOMContentLoaded', () => {
-            Promise.all([
-                loadComponent(CONFIG.SELECTORS.HEADER_BLOCK, '1header.html', '.main-header'),
-                loadComponent(CONFIG.SELECTORS.FOOTER_BLOCK, '2footer.html', '.footer')
-            ]).then(() => {
-                if (typeof initHeaderDropdown === 'function') initHeaderDropdown();
-                if (typeof initMobileHeader === 'function') initMobileHeader();
-            }).catch(console.error);
-            
-            initFilterDropdown();
-            loadEvents();
-        });
-    }
-
-    async function loadComponent(blockSelector, filePath, contentSelector) {
-        try {
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), CONFIG.TIMEOUT_MS);
-            
-            const response = await fetch(filePath, { signal: controller.signal });
-            clearTimeout(timeoutId);
-            
-            if (!response.ok) throw new Error(`HTTP ${response.status}`);
-            
-            const html = await response.text();
-            const parser = new DOMParser();
-            const doc = parser.parseFromString(html, 'text/html');
-            const content = doc.querySelector(contentSelector);
-            
-            if (content) {
-                const block = document.querySelector(blockSelector);
-                if (block) block.appendChild(content);
-            }
-        } catch (error) {
-            if (error.name !== 'AbortError') {
-                console.error(`Component load failed: ${filePath}`, error);
-            }
-        }
-    }
-
-    function initFilterDropdown() {
-        const filterButton = document.querySelector(CONFIG.SELECTORS.FILTER_BUTTON);
-        const filterMenu = document.querySelector(CONFIG.SELECTORS.FILTER_MENU);
+async function loadHeader() {
+    try {
+        const response = await fetch('1header.html');
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
         
-        if (!filterButton || !filterMenu) return;
-
-        filterButton.addEventListener('click', (event) => {
-            event.stopPropagation();
-            toggleDropdown(filterButton, filterMenu);
-        });
-
-        document.addEventListener('click', (event) => {
-            if (!filterMenu.contains(event.target) && !filterButton.contains(event.target)) {
-                closeDropdown(filterButton, filterMenu);
-            }
-        });
-
-        document.querySelectorAll(CONFIG.SELECTORS.FILTER_ITEMS).forEach((item) => {
-            item.addEventListener('click', () => {
-                const filterValue = item.getAttribute('data-filter');
-                const filterText = item.textContent;
-
-                document.querySelectorAll(CONFIG.SELECTORS.FILTER_ITEMS).forEach(i => 
-                    i.classList.remove(CONFIG.CLASSES.ACTIVE)
-                );
-                item.classList.add(CONFIG.CLASSES.ACTIVE);
-
-                const selectedSpan = filterButton.querySelector('.dropdown__selected');
-                if (selectedSpan) selectedSpan.textContent = filterText;
-
-                state.currentFilter = filterValue;
-                renderEvents(state.eventsData);
-                closeDropdown(filterButton, filterMenu);
-            });
-        });
-    }
-
-    function toggleDropdown(button, menu) {
-        button.classList.toggle(CONFIG.CLASSES.ACTIVE);
-        menu.classList.toggle(CONFIG.CLASSES.ACTIVE);
-    }
-
-    function closeDropdown(button, menu) {
-        button.classList.remove(CONFIG.CLASSES.ACTIVE);
-        menu.classList.remove(CONFIG.CLASSES.ACTIVE);
-    }
-
-    async function loadEvents() {
-        const eventsGrid = document.querySelector(CONFIG.SELECTORS.EVENTS_GRID);
-        if (!eventsGrid) return;
-
-        try {
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), CONFIG.TIMEOUT_MS);
-            
-            const listResponse = await fetch(
-                `${CONFIG.API_BASE_URL}${CONFIG.API_ENDPOINTS.EVENTS_ORDER}`, 
-                { signal: controller.signal }
-            );
-            clearTimeout(timeoutId);
-            
-            if (!listResponse.ok) {
-                eventsGrid.innerHTML = '<div class="news-grid__error">Ошибка загрузки</div>';
-                return;
-            }
-            
-            const ids = await listResponse.json();
-            const eventIds = Array.isArray(ids) ? ids : [];
-            
-            if (!eventIds.length) {
-                eventsGrid.innerHTML = '<div class="news-grid__empty">Нет мероприятий</div>';
-                return;
-            }
-
-            state.eventsData = [];
-            
-            for (const id of eventIds) {
-                try {
-                    const contentData = await fetchEventContent(id);
-                    if (contentData) {
-                        state.eventsData.push({
-                            id,
-                            title: contentData.header || 'Без названия',
-                            datetime: contentData.date || '',
-                            year: extractYear(contentData.date),
-                            body: contentData.body || '',
-                            dateRaw: contentData.date
-                        });
-                    }
-                } catch (error) {
-                    console.warn(`Failed to load event ${id}:`, error);
-                }
-            }
-
-            renderEvents(state.eventsData);
-            
-        } catch (error) {
-            if (error.name !== 'AbortError') {
-                console.error('Events load failed:', error);
-                eventsGrid.innerHTML = '<div class="news-grid__error">Ошибка загрузки</div>';
-            }
-        }
-    }
-
-    async function fetchEventContent(id) {
-        try {
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), CONFIG.TIMEOUT_MS);
-            
-            const response = await fetch(
-                `${CONFIG.API_BASE_URL}${CONFIG.API_ENDPOINTS.EVENTS_CONTENT}?name=${encodeURIComponent(id)}`,
-                { signal: controller.signal }
-            );
-            clearTimeout(timeoutId);
-            
-            if (!response.ok) return null;
-            return await response.json();
-        } catch {
-            return null;
-        }
-    }
-
-    function extractYear(dateStr) {
-        if (!dateStr) return '';
-        const yearMatch = dateStr.match(/\b(19|20)\d{2}\b/);
-        return yearMatch ? yearMatch[0] : '';
-    }
-
-    function escapeHtml(text) {
-        if (!text) return '';
-        const div = document.createElement('div');
-        div.textContent = text;
-        return div.innerHTML;
-    }
-
-    function createEventsCard(event) {
-        let dayMonth = '';
-        const year = event.year || '';
+        const html = await response.text();
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(html, 'text/html');
+        const headerContent = doc.querySelector('.main-header');
         
-        const dateMatch = event.datetime.match(/(\d{1,2})\s+([а-я]+)/i);
-        if (dateMatch) {
-            dayMonth = dateMatch[0];
-        } else {
-            dayMonth = event.datetime.substring(0, 10);
+        if (headerContent) {
+            const headerBlock = document.getElementById('header-block');
+            if (headerBlock) headerBlock.appendChild(headerContent);
         }
-
-        return `
-            <div class="events-card" data-event-id="${escapeHtml(event.id)}">
-                <div class="events-card__badge">
-                    <p class="events-card__badge-day">${escapeHtml(dayMonth)}</p>
-                    <p class="events-card__badge-year">${escapeHtml(year)}</p>
-                </div>
-                <h3 class="events-card__title">${escapeHtml(event.title)}</h3>
-                <div class="events-card__footer">
-                    <p class="events-card__date">${escapeHtml(event.datetime)}</p>
-                    <div class="events-card__button">
-                        <img src="img/arrow-right (2).svg" alt="→">
-                    </div>
-                </div>
-            </div>
-        `;
+        
+        if (typeof initHeaderDropdown === 'function') initHeaderDropdown();
+        if (typeof initMobileHeader === 'function') initMobileHeader();
+    } catch (error) {
+        console.error('Header load failed:', error);
     }
+}
 
-    function renderEvents(eventsArray) {
-        const eventsGrid = document.querySelector(CONFIG.SELECTORS.EVENTS_GRID);
-        if (!eventsGrid) return;
+async function loadFooter() {
+    try {
+        const response = await fetch('2footer.html');
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        
+        const html = await response.text();
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(html, 'text/html');
+        const footerContent = doc.querySelector('.footer');
+        
+        if (footerContent) {
+            const footerBlock = document.getElementById('footer-block');
+            if (footerBlock) footerBlock.appendChild(footerContent);
+        }
+    } catch (error) {
+        console.error('Footer load failed:', error);
+    }
+}
 
-        const filteredEvents = state.currentFilter === 'all' 
-            ? eventsArray 
-            : eventsArray.filter(event => event.year === state.currentFilter);
+function initDropdown() {
+    const filterButton = document.getElementById('filter-button');
+    const filterMenu = document.getElementById('filter-menu');
+    const filterItems = document.querySelectorAll('.dropdown__item');
 
-        if (!filteredEvents.length) {
-            eventsGrid.innerHTML = '<div class="news-grid__empty">Нет мероприятий за выбранный период</div>';
+    if (!filterButton || !filterMenu) return;
+
+    filterButton.addEventListener('click', (event) => {
+        event.stopPropagation();
+        filterButton.classList.toggle('active');
+        filterMenu.classList.toggle('active');
+    });
+
+    filterItems.forEach((item) => {
+        item.addEventListener('click', () => {
+            const filterValue = item.getAttribute('data-filter');
+            const filterText = item.textContent;
+
+            filterItems.forEach(i => i.classList.remove('active'));
+            item.classList.add('active');
+
+            const selectedSpan = filterButton.querySelector('.dropdown__selected');
+            if (selectedSpan) selectedSpan.textContent = filterText;
+
+            currentFilter = filterValue;
+            renderNews(newsData);
+
+            filterButton.classList.remove('active');
+            filterMenu.classList.remove('active');
+        });
+    });
+
+    document.addEventListener('click', (event) => {
+        if (!filterMenu.contains(event.target) && !filterButton.contains(event.target)) {
+            filterButton.classList.remove('active');
+            filterMenu.classList.remove('active');
+        }
+    });
+}
+
+async function loadNews() {
+    const newsGrid = document.getElementById('news-grid');
+    if (!newsGrid) return;
+
+    try {
+        const listResponse = await fetch(`${API_BASE_URL}/api/v1/block/новости/order`);
+        
+        if (!listResponse.ok) {
+            newsGrid.innerHTML = '<div class="news-grid__empty">Нет новостей</div>';
             return;
         }
 
-        const fragment = document.createDocumentFragment();
-        const tempDiv = document.createElement('div');
-        tempDiv.innerHTML = filteredEvents.map(createEventsCard).join('');
-        
-        while (tempDiv.firstChild) {
-            fragment.appendChild(tempDiv.firstChild);
+        const ids = await listResponse.json();
+        const newsIds = Array.isArray(ids) ? ids : [];
+
+        if (newsIds.length === 0) {
+            newsGrid.innerHTML = '<div class="news-grid__empty">Нет новостей</div>';
+            return;
         }
-        
-        eventsGrid.innerHTML = '';
-        eventsGrid.appendChild(fragment);
-        initEventsCardClicks();
-    }
 
-    function initEventsCardClicks() {
-        document.querySelector(CONFIG.SELECTORS.EVENTS_GRID)?.addEventListener('click', (event) => {
-            const card = event.target.closest(CONFIG.SELECTORS.EVENTS_CARD);
-            if (!card) return;
-            
-            event.preventDefault();
-            event.stopPropagation();
-            
-            const eventId = card.getAttribute('data-event-id');
-            const eventData = state.eventsData.find(e => e.id === eventId);
-            
-            if (eventData) {
-                openEventPopup(eventData);
+        newsData = [];
+
+        for (const id of newsIds) {
+            try {
+                const contentData = await fetchNewsContent(id);
+                if (contentData) {
+                    newsData.push({
+                        id,
+                        header: contentData.header || '',
+                        body: contentData.body || '',
+                        date: contentData.date || '',
+                        year: extractYear(contentData.date)
+                    });
+                }
+            } catch (error) {
+                console.warn(`Failed to load news ${id}:`, error);
             }
-        }, { once: true });
+        }
+
+        renderNews(newsData);
+    } catch (error) {
+        console.error('News load failed:', error);
+        const newsGrid = document.getElementById('news-grid');
+        if (newsGrid) {
+            newsGrid.innerHTML = '<div class="news-grid__error">Ошибка загрузки новостей</div>';
+        }
+    }
+}
+
+async function fetchNewsContent(id) {
+    try {
+        const response = await fetch(
+            `${API_BASE_URL}/api/v1/block/новости/content?name=${encodeURIComponent(id)}`
+        );
+        if (!response.ok) return null;
+        return await response.json();
+    } catch {
+        return null;
+    }
+}
+
+function extractYear(dateStr) {
+    if (!dateStr) return '';
+    
+    try {
+        const [year] = dateStr.split('-');
+        return year;
+    } catch {
+        return '';
+    }
+}
+
+function formatDate(dateStr) {
+    if (!dateStr) return '';
+    
+    try {
+        const [year, month, day] = dateStr.split('-');
+        return `${day}.${month}.${year}`;
+    } catch {
+        return dateStr;
+    }
+}
+
+async function loadNewsImage(id, type = 'mini') {
+    try {
+        const url = `${API_BASE_URL}/api/v1/block/новости/attachment?name=${encodeURIComponent(id)}&attachment=${type}`;
+        const response = await fetch(url);
+        
+        if (!response.ok) return null;
+        
+        const blob = await response.blob();
+        return URL.createObjectURL(blob);
+    } catch {
+        return null;
+    }
+}
+
+function escapeHtml(text) {
+    if (!text) return '';
+    
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+function createNewsCard(news) {
+    const card = document.createElement('div');
+    card.className = 'news-card';
+    card.dataset.newsId = news.id;
+    card.style.cursor = 'pointer';
+
+    const content = document.createElement('div');
+    content.className = 'news-card__content';
+
+    const title = document.createElement('h3');
+    title.className = 'news-card__title';
+    title.textContent = news.header || 'Без названия';
+
+    const date = document.createElement('p');
+    date.className = 'news-card__date';
+    date.textContent = formatDate(news.date);
+
+    content.appendChild(title);
+    content.appendChild(date);
+    card.appendChild(content);
+
+    loadNewsImage(news.id, 'mini')
+        .then(url => {
+            if (url) {
+                card.style.backgroundImage = `url('${url}')`;
+            }
+        })
+        .catch(() => {});
+
+    card.addEventListener('click', (event) => {
+        event.preventDefault();
+        openNewsPopup(news.id, news);
+    });
+
+    return card;
+}
+
+function renderNews(newsArray) {
+    const newsGrid = document.getElementById('news-grid');
+    if (!newsGrid) return;
+
+    const filteredNews = currentFilter === 'all' 
+        ? newsArray 
+        : newsArray.filter(news => news.year === currentFilter);
+
+    newsGrid.innerHTML = '';
+
+    if (filteredNews.length === 0) {
+        newsGrid.innerHTML = '<div class="news-grid__empty">Нет новостей за выбранный период</div>';
+        return;
     }
 
-    function createEventPopup() {
-        const popup = document.createElement('div');
-        popup.className = 'events-popup';
-        popup.id = 'event-popup-dynamic';
-        popup.setAttribute('aria-hidden', 'true');
-        
-        popup.innerHTML = `
-            <div class="events-popup__content" role="dialog" aria-modal="true" aria-label="Детали мероприятия">
-                <button class="events-popup__close" id="event-popup-close-btn" aria-label="Закрыть">
-                    <img src="img/cross-icon.svg" alt="" aria-hidden="true">
-                </button>
-                <h3 class="events-popup__title"></h3>
-                <p class="events-popup__datetime"></p>
-                <div class="events-popup__text"></div>
+    filteredNews.forEach(news => {
+        newsGrid.appendChild(createNewsCard(news));
+    });
+}
+
+function createNewsPopup() {
+    const popup = document.createElement('div');
+    popup.className = 'news-popup';
+    popup.id = 'news-popup-dynamic';
+    popup.setAttribute('aria-hidden', 'true');
+    
+    popup.innerHTML = `
+        <div class="news-popup__content" role="dialog" aria-modal="true" aria-label="Новость">
+            <button class="news-popup__close" id="news-popup-close-btn" aria-label="Закрыть">
+                <img src="img/cross-icon.svg" alt="" aria-hidden="true">
+            </button>
+            <div class="news-popup__text-wrapper">
+                <h3 class="news-popup__title"></h3>
+                <p class="news-popup__subtitle"></p>
+                <div class="news-popup__section">
+                    <div class="news-popup__body-content"></div>
+                </div>
             </div>
-        `;
-        
-        document.body.appendChild(popup);
-        return popup;
+            <div class="news-popup__image">
+                <img src="" alt="">
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(popup);
+    return popup;
+}
+
+function initNewsPopupHandlers() {
+    if (!newsPopupElement) return;
+    
+    const closeBtn = newsPopupElement.querySelector('#news-popup-close-btn');
+    
+    if (closeBtn) {
+        closeBtn.addEventListener('click', closeNewsPopup);
     }
 
-    function initEventPopupHandlers() {
-        if (!state.popupElement) return;
-        
-        const closeBtn = state.popupElement.querySelector(CONFIG.SELECTORS.POPUP_CLOSE);
-        
-        if (closeBtn) {
-            closeBtn.addEventListener('click', closeEventPopup);
+    newsPopupElement.addEventListener('click', (event) => {
+        if (event.target === newsPopupElement) {
+            closeNewsPopup();
         }
-        
-        state.popupElement.addEventListener('click', (event) => {
-            if (event.target === state.popupElement) {
-                closeEventPopup();
-            }
-        });
-        
-        document.addEventListener('keydown', (event) => {
-            if (event.key === 'Escape' && state.popupElement?.classList.contains(CONFIG.CLASSES.POPUP_ACTIVE)) {
-                closeEventPopup();
-            }
-        });
-    }
+    });
 
-    function closeEventPopup() {
-        if (!state.popupElement) return;
-        
-        state.popupElement.classList.remove(CONFIG.CLASSES.POPUP_ACTIVE);
-        state.popupElement.setAttribute('aria-hidden', 'true');
-        document.body.style.overflow = '';
-    }
+    document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape' && newsPopupElement?.classList.contains('active')) {
+            closeNewsPopup();
+        }
+    });
+}
 
-    function formatBodyContent(text) {
-        if (!text) return '';
-        
-        const paragraphs = text.split(/\n\s*\n/).filter(p => p.trim());
-        const urlRegex = /(?:https?:\/\/|www\.)[^\s<]+/gi;
-        
+function closeNewsPopup() {
+    if (!newsPopupElement) return;
+    
+    newsPopupElement.classList.remove('active');
+    newsPopupElement.setAttribute('aria-hidden', 'true');
+    document.body.style.overflow = '';
+    
+    const imageElement = newsPopupElement.querySelector('.news-popup__image img');
+    if (imageElement) {
+        imageElement.src = '';
+        imageElement.alt = '';
+    }
+    
+    const imageContainer = newsPopupElement.querySelector('.news-popup__image');
+    if (imageContainer) {
+        imageContainer.style.display = 'none';
+    }
+}
+
+function formatBodyContent(text) {
+    if (!text) return '';
+    
+    const paragraphs = text.split(/\n\s*\n/).filter(p => p.trim());
+    const urlRegex = /(?:https?:\/\/|www\.)[^\s<]+/gi;
+    
+    if (paragraphs.length > 1) {
         return paragraphs.map(paragraph => {
-            let processed = paragraph.trim();
+            let processed = paragraph.trim().replace(/\n/g, ' ');
             processed = processed.replace(urlRegex, (url) => {
                 const href = url.startsWith('http') ? url : `https://${url}`;
-                return `<a href="${href}" target="_blank" rel="noopener noreferrer">${escapeHtml(url)}</a>`;
+                return `<a href="${href}" target="_blank" rel="noopener noreferrer" class="news-popup__link">${escapeHtml(url)}</a>`;
             });
-            return `<p>${processed}</p>`;
+            return `<p class="news-popup__paragraph">${processed}</p>`;
         }).join('');
+    } else {
+        let formatted = text.replace(/\n/g, '<br>');
+        formatted = formatted.replace(urlRegex, (url) => {
+            const href = url.startsWith('http') ? url : `https://${url}`;
+            return `<a href="${href}" target="_blank" rel="noopener noreferrer" class="news-popup__link">${escapeHtml(url)}</a>`;
+        });
+        return `<p class="news-popup__paragraph">${formatted}</p>`;
+    }
+}
+
+async function openNewsPopup(id, cachedData) {
+    if (newsPopupElement && newsPopupElement.classList.contains('active')) {
+        closeNewsPopup();
+    }
+    
+    if (!newsPopupElement) {
+        newsPopupElement = createNewsPopup();
+        initNewsPopupHandlers();
     }
 
-    async function openEventPopup(eventData) {
-        if (!state.popupElement) {
-            state.popupElement = createEventPopup();
-            initEventPopupHandlers();
-        }
-
-        let content = eventData;
-        
-        if (!content.body) {
-            const fresh = await fetchEventContent(eventData.id);
-            if (fresh) content = fresh;
-        }
-
-        const titleElement = state.popupElement.querySelector('.events-popup__title');
-        const datetimeElement = state.popupElement.querySelector('.events-popup__datetime');
-        const bodyElement = state.popupElement.querySelector('.events-popup__text');
-
-        if (titleElement) {
-            titleElement.textContent = content.header || eventData.title || '';
-        }
-        
-        if (datetimeElement) {
-            datetimeElement.textContent = content.date || eventData.dateRaw || '';
-        }
-        
-        if (bodyElement && content.body) {
-            bodyElement.innerHTML = formatBodyContent(content.body);
-        }
-
-        state.popupElement.classList.add(CONFIG.CLASSES.POPUP_ACTIVE);
-        state.popupElement.setAttribute('aria-hidden', 'false');
-        document.body.style.overflow = 'hidden';
+    let contentData = cachedData;
+    
+    if (!contentData?.body) {
+        contentData = await fetchNewsContent(id);
+        if (!contentData) return;
     }
 
-    return { init };
-})();
+    const titleElement = newsPopupElement.querySelector('.news-popup__title');
+    const subtitleElement = newsPopupElement.querySelector('.news-popup__subtitle');
+    const bodyElement = newsPopupElement.querySelector('.news-popup__body-content');
+    const imageElement = newsPopupElement.querySelector('.news-popup__image img');
+    const imageContainer = newsPopupElement.querySelector('.news-popup__image');
 
-EventApp.init();
+    if (titleElement) {
+        titleElement.textContent = contentData.header || '';
+    }
+
+    if (subtitleElement) {
+        subtitleElement.style.display = 'none';
+    }
+
+    if (bodyElement && contentData.body) {
+        bodyElement.innerHTML = formatBodyContent(contentData.body);
+    } else if (bodyElement) {
+        bodyElement.innerHTML = '';
+    }
+
+    newsPopupElement.classList.add('active');
+    newsPopupElement.setAttribute('aria-hidden', 'false');
+    document.body.style.overflow = 'hidden';
+    
+    if (imageElement && imageContainer) {
+        imageElement.src = '';
+        imageContainer.style.display = 'none';
+        
+        try {
+            const fullImageUrl = await loadNewsImage(id, 'full');
+            
+            if (fullImageUrl && newsPopupElement.classList.contains('active')) {
+                imageElement.src = fullImageUrl;
+                imageElement.alt = contentData.header || '';
+                imageContainer.style.display = '';
+            } else if (fullImageUrl) {
+                URL.revokeObjectURL(fullImageUrl);
+            }
+        } catch (error) {
+            console.warn('Failed to load image:', error);
+        }
+    }
+}
