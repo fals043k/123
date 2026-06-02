@@ -1,0 +1,91 @@
+.development-section {
+    background-color: #f5f5f5;
+    min-height: 400px;
+    display: flex;
+    align-items: center;
+    position: relative;
+    overflow: hidden;
+}
+
+.development-section::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 600px;
+    height: 100%;
+    background: url('../img/background-pattern-2.png') center right/contain no-repeat;
+    opacity: 0.5;
+    pointer-events: none;
+    z-index: 0;
+}
+
+.development__container {
+    position: relative;
+    z-index: 1;
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 80px 2vw;
+}
+
+.development__content {
+    max-width: 700px;
+}
+
+.development__text {
+    font-weight: 400;
+    font-size: 18px;
+    line-height: 160%;
+    color: #333333;
+    margin-bottom: 32px;
+}
+
+.development__button {
+    display: inline-block;
+    padding: 14px 32px;
+    background-color: #1a5c9e;
+    color: #ffffff;
+    text-decoration: none;
+    font-size: 18px;
+    font-weight: 500;
+    border-radius: 4px;
+    transition: background-color 0.3s, opacity 0.3s;
+    cursor: pointer;
+}
+
+.development__button:hover {
+    background-color: #134a7e;
+    opacity: 0.9;
+}
+
+.development__button:active {
+    background-color: #0e3a63;
+}
+
+@media (max-width: 430px) {
+    .development-section {
+        min-height: 0;
+        display: block;
+    }
+
+    .development-section::after {
+        display: none;
+    }
+
+    .development__container {
+        padding: 32px 16px 40px;
+    }
+
+    .development__text {
+        font-size: 14px;
+        margin-bottom: 24px;
+    }
+
+    .development__button {
+        font-size: 16px;
+        padding: 12px 24px;
+        width: 100%;
+        text-align: center;
+        box-sizing: border-box;
+    }
+}

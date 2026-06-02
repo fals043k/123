@@ -276,7 +276,7 @@ const EventApp = (() => {
             if (eventData) {
                 openEventPopup(eventData);
             }
-        }, { once: true });
+        }, { once: false });
     }
 
     function createEventPopup() {
