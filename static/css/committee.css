@@ -1,0 +1,109 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+.team-list {
+    width: 100%;
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 5%;
+    margin-top: 60px;
+    display: flex;
+    justify-content: center;
+    gap: 200px;
+    flex-wrap: wrap;
+}
+
+.team-photo {
+    flex: 0 0 auto;
+    width: 250px;
+    text-align: center;
+}
+
+.team-photo img {
+    width: 100%;
+    height: auto;
+    display: block;
+    margin-bottom: 10px;
+}
+
+.committee-about__head {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    margin-bottom: 24px;
+}
+
+.committee-about__icon {
+    width: 48px;
+    height: 48px;
+    object-fit: contain;
+    flex: 0 0 auto;
+}
+
+.committee-about__head .piter-section__title {
+    margin-bottom: 0;
+}
+
+.committee-file {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 24px;
+    padding: 12px 24px;
+    background: #1a5c9e;
+    color: #ffffff;
+    border-radius: 10px;
+    font-weight: 600;
+    font-size: 16px;
+    text-decoration: none;
+    transition: background 0.2s ease, transform 0.2s ease;
+}
+
+.committee-file:hover {
+    background: #14487c;
+    transform: translateY(-2px);
+}
+
+.committee-members {
+    margin-top: 24px;
+    text-align: center;
+}
+
+.committee-members__summary {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    list-style: none;
+    font-weight: 600;
+    font-size: 16px;
+    color: #1a5c9e;
+    padding: 10px 0;
+    user-select: none;
+}
+
+.committee-members__summary::-webkit-details-marker {
+    display: none;
+}
+
+.committee-members__summary::after {
+    content: '▾';
+    font-size: 14px;
+    transition: transform 0.2s ease;
+}
+
+.committee-members[open] .committee-members__summary::after {
+    transform: rotate(180deg);
+}
+
+.committee-members__body {
+    margin-top: 12px;
+    font-weight: 400;
+    font-size: 16px;
+    line-height: 160%;
+    color: #333333;
+}

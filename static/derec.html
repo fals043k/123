@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Дирекция | Международная Ассоциация «Метро»</title>
+    <link rel="stylesheet" href="css/reset.css">
+    <link rel="stylesheet" href="css/global.css">
+    <link rel="stylesheet" href="css/header.css">
+    <link rel="stylesheet" href="css/hero.css">
+    <link rel="stylesheet" href="css/derec.css">
+    <link rel="stylesheet" href="css/footer.css">
+    <link rel="stylesheet" href="css/party.css">
+</head>
+<body>
+    <div class="wrapper">
+        <div class="content">
+            <section class="hero">
+                <div id="header-block"></div>
+                <div class="hero__container container">
+                    <h1 class="hero__title" id="title">Название</h1>
+                    <p class="hero__subtitle" id="description">Описание</p>
+                </div>
+                <img class="hero__img" src="img/background-pattern1.png" alt="">
+            </section>
+
+            <section class="team" id="team">
+                <div class="team__container container">
+                    <h2 class="section-title section-title--underline">Дирекция ассоциации</h2>
+                    
+                    <div class="team__main">
+                        <div class="team__main-photo">
+                            <img src="img/Kovalev.jpg" alt="Ковалев Павел Константинович">
+                        </div>
+                        <div class="team__main-info">
+                            <h3 class="team__main-name" id="name">ФИО</h3>
+                            <ul class="team__main-list" id="advantages">Заслуги</ul>
+                            
+                            <div class="team__main-section">
+                                <h4 class="team__main-section-title">Образование</h4>
+                                <ul class="team__main-list" id="education">Образование</ul>
+                            </div>
+                            
+                            <div class="team__main-section">
+                                <h4 class="team__main-section-title">Профессиональный опыт</h4>
+                                <p class="team__main-text" id="experience">Опыт</p>
+
+                                <ul class="team__main-list team__main-list--dots" id="facts">Факты</ul>
+                            </div>
+                            
+                            <div class="team__main-section">
+                                <h4 class="team__main-section-title">Дирекция ассоциации</h4>
+                                <p class="team__main-text" id="members">Коллектив</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="slider-container">
+                        <div class="slider" id="team-slider"></div>
+                    </div>
+                </div>
+            </section>
+
+            <section class="tasks">
+                <div class="tasks__container container">
+                    <h2 class="section-title section-title--underline">Основные задачи</h2>
+                    <div class="tasks__content">
+                        <p class="tasks__text" id="purposes">Цели</p>
+                        <ul class="tasks__list" id="tasks">Задачи</ul>
+                    </div>
+                </div>
+            </section>
+
+            <div id="footer-block"></div>
+        </div>
+    </div>
+
+    <div class="metro-modal" id="metroModal">
+        <div class="modal-overlay" id="modalOverlay"></div>
+        <div class="modal-container">
+            <div class="modal-content" id="modalContent"></div>
+        </div>
+    </div>
+
+    <script type="module" src="js/derec.js"></script>
+    <script src="js/header.js"></script>
+    <script src="js/header-loader.js"></script>
+    <script src="js/footer.js"></script>
+</body>
+</html>
